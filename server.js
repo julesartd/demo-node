@@ -1,6 +1,5 @@
 const http = require('http');
 const crypto = require('crypto');
-const url = require('url');
 
 const users = [
     { login: 'user1', passwordHash: crypto.createHash('sha256').update('password1').digest('hex') },
@@ -13,16 +12,21 @@ const data = {
 };
 
 const handleLogin = (req, res) => {
-    const queryObject = url.parse(req.url, true).query;
-    const { login, password } = queryObject;
-    const user = users.find(u => u.login === login);
-    if (user && user.passwordHash === crypto.createHash('sha256').update(password).digest('hex')) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-    } else {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid login or password' }));
-    }
+    let body = '';
+    req.on('data', chunk => {
+        body += chunk.toString();
+    });
+    req.on('end', () => {
+        const { login, password } = JSON.parse(body);
+        const user = users.find(u => u.login === login);
+        if (user && user.passwordHash === crypto.createHash('sha256').update(password).digest('hex')) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ data }));
+        } else {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid login or password' }));
+        }
+    });
 };
 
 const handleHome = (req, res) => {
@@ -33,8 +37,7 @@ const handleHome = (req, res) => {
 const server = http.createServer((req, res) => {
     console.log(`${req.method} ${req.url}`);
 
-    if (req.method === 'POST' && req.url.startsWith('/login')) {
-        console.log('login');
+    if (req.method === 'POST' && req.url === '/login') {
         handleLogin(req, res);
     } else if (req.method === 'GET' && req.url === '/home') {
         handleHome(req, res);
